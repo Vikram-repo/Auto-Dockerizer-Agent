@@ -1,10 +1,22 @@
 import os
+import sys
 from google import genai
 from google.genai import types
 
-# Initialize Gemini Client
-# Ensure your API key environment variable or direct initialization is active
-client = genai.Client(api_key="YOUR API KEY PASTE HERE")
+# -------------------------------------------------------------
+# SECURE CLIENT INITIALIZATION
+# -------------------------------------------------------------
+# Fetching the API key from environment variables for production security
+GEMINI_API_KEY = os.environ.get("GEMINI_API_KEY")
+
+if not GEMINI_API_KEY:
+    print("[CRITICAL ERROR]: 'GEMINI_API_KEY' environment variable is missing!", file=sys.stderr)
+    print("Please run the container with: -e GEMINI_API_KEY='your_key'", file=sys.stderr)
+    sys.exit(1)
+
+# Initializing the SDK Client using the new Google GenAI library standard
+client = genai.Client(api_key=GEMINI_API_KEY)
+
 
 # -------------------------------------------------------------
 # AGENT 1: The Generator (Dockerfile Creator)
@@ -14,19 +26,21 @@ def generate_dockerfile(tech_stack, feedback_logs=None):
     Generates a high-performance Dockerfile based on the tech stack.
     If feedback logs exist, it optimizes the previous code to fix compliance or build errors.
     """
+    # Enhanced prompt instructions to guarantee compliance with python versions >= 3.10
     sys_instruction = (
         "You are an expert Enterprise DevOps Engineer. Your task is to write a highly optimized Dockerfile "
         "for the given technology stack.\n"
         "PRODUCTION MANDATES:\n"
-        "1. Multi-stage build is STRICTLY REQUIRED. Use a build stage for dependencies and a final minimal stage for execution.\n"
-        "2. Clean up cache after package installation to keep the layer and image size small.\n"
+        "1. Base images MUST use Python 3.11-slim or higher. Do NOT use python:3.9 or lower as dependencies require Python >= 3.10.\n"
+        "2. Multi-stage build is STRICTLY REQUIRED. Use a build stage (AS builder) for dependencies and a final minimal stage for execution.\n"
+        "3. Clean up cache after package installation to keep the layer and image size small.\n"
         "CRITICAL RULE: Return ONLY the raw Dockerfile code. "
         "Do NOT use markdown code blocks (like ```dockerfile) or any conversational text."
     )
     
     if not feedback_logs:
         user_prompt = (
-            f"Generate a multi-stage Dockerfile for a {tech_stack}. "
+            f"Generate a compliant multi-stage Dockerfile for a {tech_stack}. "
             f"The directory contains an 'app.py' file as the main entry point."
         )
     else:
